@@ -35,3 +35,13 @@ ALL_RED = 2
 MIN_GREEN = 10
 MAX_GREEN = 60
 FIXED_GREEN = 30   # fixed-time plan: 4 x (30 + 3 + 2) = 140 s cycle
+
+CAMERA_RANGE = 75.0   # metres of road a CCTV camera at the stop line can see
+MAX_WAIT_NORM = 300.0
+
+# combined reward, per second of simulated time unless noted
+W_QUEUE = 0.01        # per PCU stopped on an incoming lane
+W_BACKLOG = 0.01      # per PCU waiting to enter the network (queue spilled back)
+W_THROUGHPUT = 0.2    # per PCU that crossed the stop line (per event)
+W_SWITCH = 0.5        # per change of road (per event)
+W_MAXWAIT = 0.002     # per second of the longest current wait

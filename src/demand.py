@@ -52,7 +52,8 @@ def write_routes(rates: pd.DataFrame, start: pd.Timestamp, seconds: int,
     veh.sort()
     lines = ['<routes>']
     for i, (t, cls, o, dst) in enumerate(veh):
-        lines.append(f'  <trip id="{i}" type="{cls}" depart="{t:.1f}" from="{o}_in" '
+        # class in the id lets the env read PCU without a TraCI call
+        lines.append(f'  <trip id="{cls}.{i}" type="{cls}" depart="{t:.1f}" from="{o}_in" '
                      f'to="{dst}_out" departLane="best" departSpeed="max"/>')
     lines.append('</routes>')
     path.write_text("\n".join(lines))

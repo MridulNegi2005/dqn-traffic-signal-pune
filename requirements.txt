@@ -6,3 +6,4 @@ gymnasium>=0.29
 torch>=2.2
 pandas>=2.0
 matplotlib>=3.8
+sb3-contrib>=2.3
