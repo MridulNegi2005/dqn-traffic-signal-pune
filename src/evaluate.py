@@ -1,6 +1,8 @@
 """Compare fixed-time, actuated and DQN control on unseen test days."""
 import argparse
+import os
 import xml.etree.ElementTree as ET
+from multiprocessing import Pool
 
 import pandas as pd
 from stable_baselines3 import DQN
@@ -18,8 +20,17 @@ def read_tripinfo(path, controller, date, seed):
         rows.append(dict(controller=controller, date=date, seed=seed, vtype=cls,
                          pcu=C.PCU.get(cls, 1.0),
                          finished=float(t.get("arrival", "-1")) >= 0,
-                         wait=float(t.get("waitingTime")), delay=float(t.get("timeLoss")),
+                         wait=float(t.get("waitingTime")) + float(t.get("departDelay")),
+                         delay=float(t.get("timeLoss")) + float(t.get("departDelay")),
                          duration=float(t.get("duration"))))
+    return rows
+
+
+def job(args):
+    controller, date, seed, scale, model_path, tmp = args
+    model = DQN.load(model_path, device="cpu") if controller == "dqn" else None
+    rows = run(controller, date, seed, model, scale, tmp)
+    print(scale, date, seed, controller, "done", flush=True)
     return rows
 
 
@@ -42,15 +53,20 @@ def run(controller, date, seed, model=None, scale=1.0, tmp=None):
     rows = read_tripinfo(ti, controller, date, seed)
     for r in rows:
         r["scale"] = scale
+        r["generated"] = env.n_vehicles
     return rows
 
 
 def summarise(df):
     g = df.groupby(["controller", "scale"])
+    runs = df.groupby(["controller", "scale", "date", "seed"]).agg(
+        entered=("wait", "size"), arrived=("finished", "sum"), generated=("generated", "first"))
+    rg = runs.groupby(level=["controller", "scale"]).sum()
     s = pd.DataFrame({
-        "vehicles": g.size() / df.groupby(["controller", "scale"]).apply(
-            lambda x: x[["date", "seed"]].drop_duplicates().shape[0]),
-        "finished_pct": g.finished.mean() * 100,
+        "entered_pct": 100 * rg.entered / rg.generated,
+        "finished_pct": 100 * rg.arrived / rg.generated,
+        "throughput_per_h": rg.arrived / runs.groupby(level=["controller", "scale"]).size()
+                            / (C.DAY_SECONDS / 3600),
         "mean_wait_s": g.wait.mean(),
         "mean_delay_s": g.delay.mean(),
         "mean_trip_s": g.duration.mean(),
@@ -60,16 +76,14 @@ def summarise(df):
 
 
 def main(a):
-    model = DQN.load(C.ROOT / "results" / f"{a.model}.zip", device="cpu")
+    model_path = C.ROOT / "results" / f"{a.model}.zip"
     tmp = C.ROOT / "results" / "runs" / "eval"
     tmp.mkdir(parents=True, exist_ok=True)
-    rows = []
-    for scale in a.scales:
-        for date in C.TEST_DATES:
-            for seed in range(a.seeds):
-                for ctl in ["fixed", "actuated", "dqn"]:
-                    rows += run(ctl, date, seed, model if ctl == "dqn" else None, scale, tmp)
-                    print(scale, date, seed, ctl, "done", flush=True)
+    jobs = [(ctl, date, seed, scale, model_path, tmp)
+            for scale in a.scales for date in C.TEST_DATES
+            for seed in range(a.seeds) for ctl in ["fixed", "actuated", "dqn"]]
+    with Pool(a.workers) as pool:
+        rows = [r for part in pool.imap_unordered(job, jobs) for r in part]
     df = pd.DataFrame(rows)
     df.to_csv(C.ROOT / "results" / "eval_trips.csv.gz", index=False)
     s = summarise(df)
@@ -85,4 +99,5 @@ if __name__ == "__main__":
     p.add_argument("--model", default="dqn_pune")
     p.add_argument("--seeds", type=int, default=3)
     p.add_argument("--scales", type=float, nargs="+", default=[1.0, 1.3])
+    p.add_argument("--workers", type=int, default=os.cpu_count())
     main(p.parse_args())

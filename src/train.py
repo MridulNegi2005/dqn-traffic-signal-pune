@@ -27,7 +27,6 @@ def main(a):
         batch_size=128, gamma=0.99, train_freq=4, gradient_steps=a.envs,
         target_update_interval=2_000, exploration_fraction=0.3,
         exploration_final_eps=0.02, policy_kwargs=dict(net_arch=[128, 128]),
-        tensorboard_log=str(out / "tb"),
     )
     t0 = time.time()
     model.learn(total_timesteps=a.steps, progress_bar=False,
