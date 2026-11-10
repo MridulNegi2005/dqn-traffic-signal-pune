@@ -1,5 +1,6 @@
 """Compare fixed-time, actuated and DQN control on unseen days, demand and junctions."""
 import argparse
+import json
 import os
 import xml.etree.ElementTree as ET
 from multiprocessing import Pool
@@ -37,30 +38,52 @@ def read_tripinfo(path):
     return rows
 
 
+def load_agent(model_path):
+    """Return (model, env kwargs) using the meta file saved next to the model."""
+    meta_path = Path(str(model_path).replace(".zip", "_meta.json"))
+    meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+    env_kw = meta.get("env", {})
+    if meta.get("algo") == "qrdqn":
+        from sb3_contrib import QRDQN
+        return QRDQN.load(model_path, device="cpu"), env_kw
+    return DQN.load(model_path, device="cpu"), env_kw
+
+
 def run(job):
     scenario, controller, model_path, date, seed, tmp = job
     junction, scale, free_left = SCENARIOS[scenario]
     ti = Path(tmp) / f"trip_{scenario}_{controller}_{date}_{seed}.xml"
+    model, env_kw = (None, {}) if model_path is None else load_agent(model_path)
+    if controller == "camera_rule":
+        env_kw = dict(delta_t=2)
+    base = controller in ("fixed", "actuated")
     env = PuneCrossingEnv(dates=[date], episode_seconds=C.DAY_SECONDS, random_start=False,
                           tripinfo=ti, scale=scale, junction=junction, free_left=free_left,
-                          controller=controller if model_path is None else "agent")
+                          controller=controller if base else "agent", **env_kw)
     opts = {"date": date, "route_seed": seed}
-    if model_path is None:
+    greens = []
+    if base:
         env.run_baseline(options=opts)
     else:
-        model = DQN.load(model_path, device="cpu")
         obs, _ = env.reset(seed=seed, options=opts)
         done = False
         while not done:
-            act, _ = model.predict(obs, deterministic=True)
+            act = env.teacher_action() if model is None else model.predict(obs, deterministic=True)[0]
             obs, _, done, _, _ = env.step(act)
+        greens = env.green_log
         env.close()
     rows = read_tripinfo(ti)
     for r in rows:
         r.update(scenario=scenario, controller=controller, date=date, seed=seed,
                  generated=env.n_vehicles)
     ti.unlink()
-    print(scenario, controller, date, seed, "done", flush=True)
+    if greens:
+        g = pd.DataFrame(greens, columns=["arm", "green_s"]).groupby("arm").green_s
+        info = ", ".join(f"{a}: {n} greens avg {m:.0f}s" for a, (n, m)
+                         in g.agg(["count", "mean"]).iterrows())
+    else:
+        info = ""
+    print(scenario, controller, date, seed, "done", info, flush=True)
     return rows
 
 
@@ -97,7 +120,7 @@ def summarise(runs):
 def main(a):
     tmp = C.ROOT / "results" / "runs" / "eval"
     tmp.mkdir(parents=True, exist_ok=True)
-    controllers = [("fixed", None), ("actuated", None)]
+    controllers = [("fixed", None), ("actuated", None), ("camera_rule", None)]
     controllers += [(Path(m).stem, m) for m in a.models]
     jobs = [(sc, name, path, date, seed, str(tmp))
             for sc in a.scenarios for name, path in controllers
