@@ -10,7 +10,8 @@ from evaluate import per_run, summarise
 RES = C.ROOT / "results"
 RENAME = {
     "r03_ws_seed1": "dqn_camera_seed1", "r04_ws_seed2": "dqn_camera_seed2",
-    "r05_ws_seed3": "dqn_camera_seed3", "r10_ws_fullobs": "dqn_full_seed1",
+    "r05_ws_seed3": "dqn_camera_seed3", "cam_ws_seed4": "dqn_camera_seed4",
+    "cam_ws_seed5": "dqn_camera_seed5", "r10_ws_fullobs": "dqn_full_seed1",
     "r10_ws_fullobs_seed2": "dqn_full_seed2", "r10_ws_fullobs_seed3": "dqn_full_seed3",
 }
 
@@ -34,4 +35,4 @@ def main(pattern):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "final/eval_trips_fe_*.csv.gz")
+    main(sys.argv[1] if len(sys.argv) > 1 else "final_big/eval_trips_fb_*.csv.gz")

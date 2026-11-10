@@ -59,7 +59,7 @@ def main():
     metas = [json.loads(open(f).read()) for f in glob(str(RES / "strat" / "**" / "*_meta.json"), recursive=True)]
     mins = [m["minutes"] for m in metas] or [0]
     macros = [r"\newcommand{\trainsteps}{150,000}", r"\newcommand{\trainenvs}{4}",
-              r"\newcommand{\trainseeds}{3}",
+              r"\newcommand{\trainseeds}{5}",
               rf"\newcommand{{\trainminutes}}{{{min(mins):.0f}--{max(mins):.0f}}}"]
     (OUT / "macros.tex").write_text("\n".join(macros))
     print("tables written to", OUT)

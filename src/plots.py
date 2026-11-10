@@ -14,11 +14,11 @@ COLORS = {"fixed": "#8a8f98", "actuated": "#d9822b", "camera_rule": "#6b8e23",
           "dqn_camera": "#2b6cb0", "dqn_full": "#7b3fa0"}
 ORDER = ["fixed", "actuated", "camera_rule", "dqn_camera", "dqn_full"]
 LABELS = {"fixed": "Fixed-time", "actuated": "Actuated (loop sensors)", "camera_rule": "Camera rule",
-          "dqn_camera": "DQN, camera view (3 seeds)", "dqn_full": "DQN, full view (3 seeds)"}
+          "dqn_camera": "DQN, camera view (5 seeds)", "dqn_full": "DQN, full view (3 seeds)"}
 SCEN = {"unseen_days": "Unseen\ndays", "heavy_demand_1.3x": "1.3x\ndemand",
         "unseen_junction_RTO": "Unseen junction\n(RTO)", "free_left": "Free\nleft",
         "free_left_1.3x": "Free left,\n1.3x"}
-CURVES = {"dqn_camera": ["r03_ws_seed1", "r04_ws_seed2", "r05_ws_seed3"],
+CURVES = {"dqn_camera": ["r03_ws_seed1", "r04_ws_seed2", "r05_ws_seed3", "cam_ws_seed4", "cam_ws_seed5"],
           "dqn_full": ["r10_ws_fullobs", "r10_ws_fullobs_seed2", "r10_ws_fullobs_seed3"]}
 
 
