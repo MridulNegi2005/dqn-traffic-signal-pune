@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from config import ROOT
+
 CLASSES = ["car", "motorbike", "bus", "truck"]
 JUNCTIONS = {"a": "AlankarChowk", "j": "JehangirChowk", "r": "RTOChowk"}
 NAME_RE = re.compile(r"traffic/(\w+)/(\w\d)/\w\d_(\d+)(_one)?\.csv$")
@@ -61,8 +63,8 @@ def main(zip_path: Path, out: Path, bin_s: int) -> None:
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--zip", type=Path, default=Path("data/raw/traffic.zip"))
-    p.add_argument("--out", type=Path, default=Path("data/processed/pune_5min.csv"))
+    p.add_argument("--zip", type=Path, default=ROOT / "data" / "raw" / "traffic.zip")
+    p.add_argument("--out", type=Path, default=ROOT / "data" / "processed" / "pune_5min.csv")
     p.add_argument("--bin", type=int, default=300, help="bucket size in seconds")
     a = p.parse_args()
     main(a.zip, a.out, a.bin)
