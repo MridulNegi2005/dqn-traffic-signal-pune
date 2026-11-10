@@ -12,9 +12,9 @@ import config as C  # noqa: E402
 RES = C.ROOT / "results"
 COLORS = {"fixed": "#8a8f98", "actuated": "#d9822b", "camera_rule": "#6b8e23",
           "dqn_camera": "#2b6cb0", "dqn_full": "#7b3fa0"}
-ORDER = ["fixed", "actuated", "camera_rule", "dqn_camera", "dqn_full"]
+ORDER = ["fixed", "actuated", "camera_rule", "dqn_camera"]
 LABELS = {"fixed": "Fixed-time", "actuated": "Actuated (loop sensors)", "camera_rule": "Camera rule",
-          "dqn_camera": "DQN, camera view (5 seeds)", "dqn_full": "DQN, full view (3 seeds)"}
+          "dqn_camera": "DQN, camera view", "dqn_full": "DQN, full view (3 seeds)"}
 SCEN = {"unseen_days": "Unseen\ndays", "heavy_demand_1.3x": "1.3x\ndemand",
         "unseen_junction_RTO": "Unseen junction\n(RTO)", "free_left": "Free\nleft",
         "free_left_1.3x": "Free left,\n1.3x"}
@@ -99,29 +99,96 @@ def ablation_plot():
 
 
 def demand_profile():
+    """Average inbound demand per road over the morning, and the vehicle mix."""
     from demand import arm_rates, load_counts
-    fig, axes = plt.subplots(1, 2, figsize=(11, 3.4), sharey=True)
-    for ax, junction in zip(axes, C.JUNCTION_CAMERAS):
-        counts = load_counts(junction)
-        for date in C.TRAIN_DATES + C.TEST_DATES:
-            r = arm_rates(counts, date, junction)
-            tot = r.groupby("time")[C.CLASSES].sum().sum(axis=1)
-            test = date in C.TEST_DATES
-            ax.plot(tot.index.strftime("%H:%M"), tot.values, lw=1.2,
-                    color="#c53030" if test else "#2b6cb0", alpha=0.9 if test else 0.4,
-                    label=("test day" if test else "training day"))
-        ax.set_title(junction.replace("Chowk", " Chowk"))
-        ax.set_xticks(ax.get_xticks()[::6])
-        ax.tick_params(axis="x", labelsize=8)
-    axes[0].set_ylabel("Inbound demand (veh/h)")
-    h, lab = axes[0].get_legend_handles_labels()
-    axes[0].legend(dict(zip(lab, h)).values(), dict(zip(lab, h)).keys(), frameon=False)
+    junction = C.TRAIN_JUNCTION
+    counts = load_counts(junction)
+    days = []
+    for date in C.TRAIN_DATES + C.TEST_DATES:
+        r = arm_rates(counts, date, junction)
+        r = r[(r.time.dt.strftime("%H:%M") >= "09:00") & (r.time.dt.strftime("%H:%M") <= "11:50")]
+        r["clock"] = r.time.dt.floor("15min").dt.strftime("%H:%M")
+        r["total"] = r[C.CLASSES].sum(axis=1)
+        days.append(r)
+    d = pd.concat(days)
+    per_road = d.groupby(["clock", "arm"]).total.mean().unstack("arm")
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 3.6), gridspec_kw={"width_ratios": [1.6, 1]})
+    names = {"N": "North (camera j1)", "E": "East (camera j2)", "S": "South (camera j3)",
+             "W": "West (minor road)"}
+    shades = {"N": "#1f4e79", "E": "#2e75b6", "S": "#9dc3e6", "W": "#bfbfbf"}
+    bottom = np.zeros(len(per_road))
+    for arm in ["N", "E", "S", "W"]:
+        a1.bar(per_road.index, per_road[arm], bottom=bottom, color=shades[arm], label=names[arm], width=0.8)
+        bottom += per_road[arm].to_numpy()
+    a1.set_ylabel("Vehicles per hour")
+    a1.set_title("Inbound demand at Jehangir Chowk (mean of 8 days)", fontsize=10)
+    a1.tick_params(axis="x", labelsize=8, rotation=45)
+    a1.legend(frameon=False, fontsize=8, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.22))
+
+    mix = d[C.CLASSES].sum()
+    mix = 100 * mix / mix.sum()
+    colors = ["#2e75b6", "#ed7d31", "#70ad47", "#7f7f7f"]
+    a2.barh(["Car", "Motorbike", "Bus", "Truck"], mix.values, color=colors)
+    for i, v in enumerate(mix.values):
+        a2.text(v + 1, i, f"{v:.0f}%", va="center", fontsize=9)
+    a2.invert_yaxis()
+    a2.set_xlim(0, 65)
+    a2.set_xlabel("Share of vehicles (%)")
+    a2.set_title("Vehicle mix", fontsize=10)
+    for ax in (a1, a2):
+        ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     fig.savefig(RES / "demand_profile.png", dpi=160)
 
 
+def junction_diagram():
+    """Top view of the simulated junction: roads, lanes, camera zone and signal order."""
+    from matplotlib.patches import FancyArrowPatch, Rectangle
+    fig, ax = plt.subplots(figsize=(6.4, 6.4))
+    L, W = 10.0, 1.6
+    road = "#d9d9d9"
+    ax.add_patch(Rectangle((-W, -L), 2 * W, 2 * L, color=road, zorder=0))
+    ax.add_patch(Rectangle((-L, -W), 2 * L, 2 * W, color=road, zorder=0))
+    ax.plot([0, 0], [W, L], color="white", lw=1.5, ls=(0, (6, 4)))
+    ax.plot([0, 0], [-L, -W], color="white", lw=1.5, ls=(0, (6, 4)))
+    ax.plot([W, L], [0, 0], color="white", lw=1.5, ls=(0, (6, 4)))
+    ax.plot([-L, -W], [0, 0], color="white", lw=1.5, ls=(0, (6, 4)))
+    cam = 75 / 250 * (L - W)
+    zones = [(0, W, W, cam), (W, -W, cam, W), (-W, -W - cam, W, cam), (-W - cam, 0, cam, W)]
+    for x, y, w, h in zones:
+        ax.add_patch(Rectangle((x, y), w, h, color="#f4b183", alpha=0.6, zorder=1))
+    ax.text(W + 0.15, W + cam / 2, "camera view\n(last 75 m)", fontsize=8, va="center", color="#843c0c")
+    # left-hand traffic: vehicles from the north drive on the east half of the north road
+    arrows = [((0.8, 6.5), (0.8, 2.3)), ((-6.5, 0.8), (-2.3, 0.8)),
+              ((-0.8, -6.5), (-0.8, -2.3)), ((6.5, -0.8), (2.3, -0.8))]
+    for a, b in arrows:
+        ax.add_patch(FancyArrowPatch(a, b, arrowstyle="-|>", mutation_scale=14, color="#1f4e79", lw=1.6))
+    labels = {"N": (0, L + 0.6), "S": (0, -L - 0.8), "E": (L + 0.7, 0), "W": (-L - 0.9, 0)}
+    roads = {"N": "North\n(camera j1)", "S": "South\n(camera j3)", "E": "East\n(camera j2)",
+             "W": "West\n(minor road)"}
+    for k, (x, y) in labels.items():
+        ax.text(x, y, roads[k], ha="center", va="center", fontsize=9, fontweight="bold")
+    ax.add_patch(Rectangle((-W, -W), 2 * W, 2 * W, fill=False, ec="#c00000", lw=1.5))
+    ax.text(0, 0, "signal", ha="center", va="center", fontsize=8, color="#c00000")
+    ax.text(W + 0.4, -L + 0.2,
+            "Signal plan: one road at a time\n"
+            "green 10-60 s, yellow 3 s,\n"
+            "all-red 2 s, then next road\n\n"
+            "Lanes per road:\n"
+            "left | straight | straight + right",
+            fontsize=8, va="bottom")
+    ax.set_xlim(-L - 1.8, L + 1.8)
+    ax.set_ylim(-L - 1.6, L + 1.4)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(RES / "junction.png", dpi=170)
+
+
 if __name__ == "__main__":
     demand_profile()
+    junction_diagram()
     learning_curve()
     if (RES / "ablation.csv").exists():
         ablation_plot()

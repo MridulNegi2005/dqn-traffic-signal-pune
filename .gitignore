@@ -16,3 +16,11 @@ results/strat/
 results/final/*/
 results/kaggle/
 report/build.log
+results/eval_trips*.csv.gz
+results/runs/
+report/report.pdf
+report/*.aux
+report/*.log
+report/*.out
+results/**/eval_trips*.csv.gz
+results/final_big/*/
