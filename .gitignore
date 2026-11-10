@@ -1,0 +1,14 @@
+data/raw/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+kaggle.json
+results/runs/
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+.ai-sync/
+.venv/
+results/train_log.txt

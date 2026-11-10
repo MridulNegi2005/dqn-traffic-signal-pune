@@ -1,0 +1,8 @@
+eclipse-sumo==1.23.1
+libsumo==1.23.1
+traci==1.23.1
+stable-baselines3>=2.3
+gymnasium>=0.29
+torch>=2.2
+pandas>=2.0
+matplotlib>=3.8
