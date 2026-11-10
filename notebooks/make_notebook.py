@@ -3,7 +3,7 @@ from pathlib import Path
 
 import nbformat as nbf
 
-REPO = "https://github.com/{user}/pune-signal-rl.git"
+REPO = "https://github.com/MridulNegi2005/pune-signal-rl.git"
 
 cells = [
     ("md", "# DQN traffic-signal control on real Pune traffic counts\n"
