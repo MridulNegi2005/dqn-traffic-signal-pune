@@ -19,6 +19,7 @@ def main(a):
     env = make_vec_env(PuneCrossingEnv, n_envs=a.envs, seed=a.seed,
                        vec_env_cls=SubprocVecEnv if a.envs > 1 else None,
                        env_kwargs=dict(dates=C.TRAIN_DATES, episode_seconds=a.episode,
+                                       scale_range=C.TRAIN_SCALE_RANGE,
                                        sublane=not a.no_sublane),
                        monitor_dir=str(out / "monitor"))
     model = DQN(

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from config import (ARM_CAMERA, CLASSES, DATA_CSV, INBOUND_SHARE, MINOR_ARM,
+from config import (JUNCTION_CAMERAS, TRAIN_JUNCTION, CLASSES, DATA_CSV, INBOUND_SHARE, MINOR_ARM,
                     MINOR_ARM_FACTOR, TURN_SPLIT)
 
 OUT_OF = {"N": "S", "S": "N", "E": "W", "W": "E"}
@@ -13,17 +13,17 @@ LEFT_OF = {"N": "E", "E": "S", "S": "W", "W": "N"}
 RIGHT_OF = {"N": "W", "W": "S", "S": "E", "E": "N"}
 
 
-def load_counts(junction: str = "JehangirChowk") -> pd.DataFrame:
+def load_counts(junction: str = TRAIN_JUNCTION) -> pd.DataFrame:
     d = pd.read_csv(DATA_CSV, parse_dates=["time"])
     d = d[d.junction == junction]
     return d.groupby(["camera", "date", "time"], as_index=False)[CLASSES].sum()
 
 
-def arm_rates(counts: pd.DataFrame, date: str) -> pd.DataFrame:
+def arm_rates(counts: pd.DataFrame, date: str, junction: str = TRAIN_JUNCTION) -> pd.DataFrame:
     """Vehicles per hour, per arm and class, for each 5-minute bin of one day."""
     day = counts[counts.date == date]
     rows = []
-    for arm, cam in ARM_CAMERA.items():
+    for arm, cam in JUNCTION_CAMERAS[junction].items():
         c = day[day.camera == cam].set_index("time")[CLASSES] * 12 * INBOUND_SHARE
         rows.append(c.assign(arm=arm))
     df = pd.concat(rows).reset_index()

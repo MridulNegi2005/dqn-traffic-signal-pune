@@ -11,8 +11,13 @@ CLASSES = ["car", "motorbike", "bus", "truck"]
 # IRC:106-1990 passenger car units for urban roads
 PCU = {"car": 1.0, "motorbike": 0.5, "bus": 2.2, "truck": 2.2}
 
-# Jehangir Chowk cameras mapped to arms of the simulated crossing
-ARM_CAMERA = {"N": "j1", "E": "j2", "S": "j3"}
+# CCTV cameras mapped to arms of the simulated crossing
+JUNCTION_CAMERAS = {
+    "JehangirChowk": {"N": "j1", "E": "j2", "S": "j3"},
+    "RTOChowk": {"N": "r1", "E": "r2", "S": "r3"},
+}
+TRAIN_JUNCTION = "JehangirChowk"
+TRAIN_SCALE_RANGE = (0.7, 1.4)  # demand randomisation during training
 MINOR_ARM = "W"          # no camera: modelled as a minor road
 MINOR_ARM_FACTOR = 0.4   # share of the mean of the three observed arms
 INBOUND_SHARE = 0.5      # each camera sees traffic in both directions
