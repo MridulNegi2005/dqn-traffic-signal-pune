@@ -1,0 +1,22 @@
+\subsection{Discussion}
+\begin{itemize}
+  \item \textbf{All adaptive controllers are far better than the fixed plan.} On the unseen days
+        the fixed plan gives a mean wait of 485\,s; the actuated controller, the camera rule and
+        the camera-view DQN give 98\,s, 63\,s and 104\,s. They also move about 11\% more vehicles
+        per hour and use about 35\% less fuel per vehicle.
+  \item \textbf{The camera rule is the best controller.} With only a 75\,m camera view it waits
+        35\% less than the loop-sensor actuated controller on the unseen days (63\,s against
+        98\,s), 25\% less on the unseen junction (40\,s against 53\,s) and 43\% less with free
+        left turns. At 1.3$\times$ demand it equals the actuated controller (507\,s against 504\,s)
+        and has a higher throughput. Its advantage comes from two choices: it skips roads with no
+        queue, and it ranks roads by the PCU of the queue and the longest wait.
+  \item \textbf{The camera-view DQN is close to the actuated controller.} On the unseen junction it
+        waits 49\,s against 53\,s, and on the unseen days 104\,s against 98\,s. The result changes
+        between training seeds (standard deviation 28\,s on the unseen days), so the mean of
+        several seeds is reported.
+  \item \textbf{The DQN does not handle a change of road layout.} With free left turns, which it
+        never saw in training, its wait rises to 239\,s, while the two rules do not need training
+        and stay good. A learned controller must train on the layout where it will run.
+  \item \textbf{Buses and trucks are not left behind.} For every adaptive controller, buses wait
+        less than cars and trucks wait about as long as cars (Table~\ref{tab:class}).
+\end{itemize}

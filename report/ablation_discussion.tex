@@ -1,0 +1,29 @@
+\paragraph{What the strategy comparison shows.}
+\begin{itemize}
+  \item \textbf{Warm start is the largest single gain.} Without it, DQN with the new reward (R2)
+        waits 308\,s at real demand and 945\,s at 1.3$\times$ demand, close to the fixed plan.
+        With the camera-rule warm start (R3--R5) the mean is 109\,s and 622\,s.
+  \item \textbf{A longer view helps the learned controller.} R10 (warm start, full 236\,m view)
+        waits 76\,s against 86\,s for actuated control (11\% less) and 467\,s against 491\,s at
+        1.3$\times$ demand (5\% less). One camera at the stop line cannot give this view; it needs
+        a second camera up the road or a higher mounting, so R10 is an upper bound and not part of
+        the camera-only comparison.
+  \item \textbf{The hand-written camera rule is the strongest controller in this test}
+        (66\,s and 453\,s). It already beats actuated control, because it skips empty roads and
+        ranks roads by PCU queue and waiting time. DQN starts from this rule but does not keep all
+        of its quality; with a camera-only view the three seeds differ widely (96\,s, 87\,s and
+        146\,s at real demand).
+  \item \textbf{Longer training is worse, not better.} R8 (300{,}000 steps) waits 431\,s against
+        109\,s for the same setup at 150{,}000 steps. The agent drifts away from the teacher's
+        policy as training continues, which points to a need for early stopping or a stronger
+        anchor to the teacher.
+  \item \textbf{The other changes do not help in this setting}: the keep/switch action (R6),
+        QR-DQN (R7) and the 5\,s step (R1). R1 has a low waiting time at 1.3$\times$ demand only
+        because 37\% of its vehicles never entered the road and so have no waiting time recorded;
+        its throughput is the lowest of all controllers.
+  \item \textbf{Reward:} the combined reward gives a lower waiting time than the old reward at real
+        demand (109\,s against 150\,s, R3--R5 against R9) but a higher one at 1.3$\times$ demand
+        (622\,s against 549\,s), mostly because of one weak seed.
+\end{itemize}
+The full test therefore uses the camera rule and the camera-view DQN (the R3--R5 setup), which
+both work with one camera at the stop line. Its result in the full test is the mean of several training seeds.

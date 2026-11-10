@@ -1,0 +1,88 @@
+\subsection{What the controller can see}
+A real junction in an Indian city has CCTV cameras, not induction loops in every lane. A camera
+with a detector and a tracker (as used to build the Pune dataset) can count vehicles by class,
+tell if they move, and measure how long each stopped vehicle has waited, but only within its field
+of view. The agent therefore sees only the last 75\,m of each incoming lane.
+
+\subsection{MDP formulation}
+\begin{description}[leftmargin=1.6cm,style=nextline]
+  \item[State] For each of the 12 incoming lanes: the PCU of halted vehicles and the PCU of all
+        vehicles inside the camera view, each divided by the PCU that fits in the view; for each
+        road, the longest waiting time of a vehicle in view (divided by 300\,s); a one-hot code of
+        the road that has green; a flag that shows if the minimum green has passed; and the
+        elapsed green time. The state has 34 values in $[0,1]$.
+  \item[Action] The road that gets green next (4 actions). The agent decides every $\Delta t$
+        seconds. If it keeps the same road, the green continues. If it selects another road and the
+        minimum green (10\,s) has passed, the signal shows 3\,s of yellow and 2\,s of all-red and
+        then the new green. A green that reaches the maximum (60\,s) passes to another road.
+        In the \emph{keep/switch} variant the agent has 2 actions: keep the green, or switch to the
+        road that the camera rule (below) ranks highest.
+  \item[Reward] For each second $s$ of a decision step, the controller pays a cost; vehicles that
+        cross the stop line earn a bonus; a change of road costs a fixed penalty:
+        \begin{equation}
+        r_{t+1} = -\sum_{s}\Big(w_q\,Q_s + w_b\,B_s + w_m\,M_s\Big) + w_x\,X_t - w_c\,\,\mathbf{1}[\text{switch}],
+        \end{equation}
+        where $Q_s$ is the PCU of stopped vehicles on the incoming lanes, $B_s$ is the PCU of
+        vehicles that cannot enter the road because the queue has spilled back, $M_s$ is the
+        longest accumulated waiting time of any vehicle, and $X_t$ is the PCU that crossed the stop
+        line during the step. The weights are $w_q=w_b=0.01$, $w_m=0.002$, $w_x=0.2$ and
+        $w_c=0.5$. The terms target queues, spill-back, starvation of a quiet road, throughput and
+        the 5\,s lost at each change of road. The reward uses simulator data that a camera cannot
+        give (for example $B_s$); this is allowed because the reward is used only in training,
+        while the deployed controller uses only the camera state.
+\end{description}
+
+\subsection{Camera rule: a baseline and a teacher}
+The camera rule is a hand-written controller that uses only camera data. It keeps the green while
+vehicles are inside the last 30\,m of the green road, between the minimum and maximum green. When
+the green road is clear, it serves the road with the highest score
+$\sum_{\text{lanes}} \mathrm{PCU}_{\text{halted}} + 0.05\times(\text{longest wait in s})$,
+so it skips empty roads. It is a baseline and also the \emph{teacher} for a warm start: before RL
+training, 20{,}000 decisions of the camera rule fill the replay buffer, and the exploration rate
+starts at 0.2 instead of 1.0. The agent then learns to improve on the rule.
+
+\subsection{Strategies}
+Ten training runs test one change each (Table~\ref{tab:strategies}). All use the camera state and
+the combined reward unless the table says otherwise.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{lll}
+\toprule
+Run & Change & Question \\
+\midrule
+R1 & DQN, $\Delta t=5$\,s & Effect of the new reward and state alone \\
+R2 & DQN, $\Delta t=2$\,s & Effect of faster decisions \\
+R3--R5 & R2 + warm start from the camera rule (3 seeds) & Main candidate and its spread \\
+R6 & R3 + keep/switch action & Is a 2-action design easier to learn? \\
+R7 & R3 with QR-DQN & Effect of a distributional DQN \\
+R8 & R3 trained for 300{,}000 steps & Effect of longer training \\
+R9 & R3 with the old reward (drop in waiting time) & Contribution of the combined reward \\
+R10 & R3 with a full-lane view instead of the camera & Cost of camera-only sensing \\
+\bottomrule
+\end{tabular}
+\caption{Training runs. Each run trains for 150{,}000 steps unless noted.}
+\label{tab:strategies}
+\end{table}
+
+\subsection{Training and testing}
+\begin{itemize}
+  \item \textbf{Training:} days 11--15 January at Jehangir Chowk. Each episode is one random hour
+        of the morning peak with the demand scaled by a random factor in $[0.7,1.4]$.
+        DQN from Stable-Baselines3, MLP with two hidden layers of 256 units,
+        learning rate $5\times10^{-4}$, replay buffer $2\times10^5$, batch 128, $\gamma=0.99$,
+        target update every 2{,}000 steps. Each run uses 4 parallel SUMO instances on a Kaggle
+        notebook.
+  \item \textbf{Test scenarios:} days 16--18 January, full 3-hour peak, three route seeds per day:
+        (1) unseen days at Jehangir Chowk; (2) the same days at 1.3 times the real demand;
+        (3) an unseen junction, RTO Chowk; (4--5) unseen days at 1.0 and 1.3 times demand with
+        free left turns. Each route seed fixes the vehicle departures, so all controllers see the
+        same vehicles.
+  \item \textbf{Baselines:} a fixed-time plan (30\,s green per road, 140\,s cycle); the SUMO
+        actuated controller on the same four phases, which uses an induction loop on every lane
+        and extends a green between 10 and 60\,s while vehicles arrive; and the camera rule.
+  \item \textbf{Metrics:} from SUMO trip information. Waiting time and delay include the time a
+        vehicle waits to enter the network. Throughput is the number of vehicles that complete
+        their trip per hour. Fuel and CO$_2$ are per vehicle.
+\end{itemize}
+

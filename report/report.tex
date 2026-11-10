@@ -1,0 +1,281 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage[table]{xcolor}
+\usepackage{graphicx,booktabs,amsmath,enumitem,float,caption,setspace,fancyhdr,titlesec}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue!50!black,citecolor=black]{hyperref}
+\onehalfspacing
+\definecolor{bench}{RGB}{226,239,218}
+\definecolor{chosen}{RGB}{221,235,247}
+\setlist{itemsep=1pt,topsep=3pt}
+\captionsetup{font=small,labelfont=bf}
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.6em}{\MakeUppercase}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small UCS760 Course Project}
+\fancyhead[R]{\small DQN Traffic Signal Control, Pune}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\input{generated/macros.tex}
+\newcommand{\fig}[2]{\IfFileExists{#2}{\includegraphics[width=#1]{#2}}{\fbox{\parbox{#1}{\centering\vspace{1.5cm}\textit{Figure pending: results not generated yet}\vspace{1.5cm}}}}}
+
+\newcommand{\student}{Mridul Negi}
+\newcommand{\rollno}{102303118}
+\newcommand{\teacher}{Himika Sharma}
+\newcommand{\repourl}{\url{https://github.com/MridulNegi2005/pune-signal-rl}}
+
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\large\bfseries THAPAR INSTITUTE OF ENGINEERING AND TECHNOLOGY, PATIALA\par}
+\vspace{0.3cm}
+{\normalsize Department of Computer Science and Engineering\par}
+\vspace{2.2cm}
+{\large Project Report\par}
+\vspace{0.5cm}
+{\LARGE\bfseries Deep Q-Network Traffic Signal Control on Real Heterogeneous Traffic from Pune\par}
+\vspace{1.2cm}
+{\large UCS760: Edge AI and Robotics --- Reinforcement Learning\par}
+\vfill
+\begin{minipage}[t]{0.45\textwidth}
+\raggedright\textbf{Submitted by}\\[2pt]
+\student\\
+Roll No.\ \rollno
+\end{minipage}\hfill
+\begin{minipage}[t]{0.45\textwidth}
+\raggedleft\textbf{Submitted to}\\[2pt]
+\teacher
+\end{minipage}
+\vfill
+{\large November 2026\par}
+\vspace*{1cm}
+\end{titlepage}
+
+\section*{Abstract}
+\addcontentsline{toc}{section}{Abstract}
+
+Most reinforcement learning (RL) studies of traffic signal control use synthetic, car-only demand
+and lane-disciplined traffic. Indian junctions carry mixed traffic in which motorbikes are close to
+half of all vehicles, and many junctions serve one road at a time. This project trains a Deep
+Q-Network (DQN) agent that decides which road of a four-way junction gets the green light and for how
+long. The demand comes from real CCTV vehicle counts at Jehangir Chowk, Pune (11--18 January 2023).
+The SUMO simulation models four vehicle classes, left-hand traffic, dedicated turn lanes and lane
+sharing by motorbikes; the reward weights each vehicle by its Passenger Car Unit (PCU). The agent is
+trained on five days with randomised demand and tested on three unseen days, on 1.3 times the real
+demand, on a junction it never saw (RTO Chowk) and with free left turns. It is compared with a
+fixed-time plan, a loop-sensor actuated controller and a hand-written camera rule. All adaptive
+controllers cut the mean waiting time by about 80\% against the fixed plan. The camera rule,
+which needs only a CCTV camera, waits 25--43\% less than the actuated controller in normal traffic;
+the camera-view DQN, warm-started from this rule, comes close to the actuated controller.
+
+
+\clearpage
+\section{Introduction}
+A traffic signal decides which approach of a junction gets the green light and for how long.
+Many Indian junctions run a fixed plan that gives each road the same green time in a fixed order.
+A fixed plan does not react to the queues that are present. Reinforcement learning lets a controller
+learn a policy by interaction with a simulator: it observes the queues, selects a road to serve, and
+receives a reward that measures the delay of the vehicles.
+
+Most Indian junctions have CCTV cameras but no induction loops in the road. This project
+therefore asks what a signal controller can do with the view of one camera at the stop line.
+The contributions are:
+\begin{enumerate}
+  \item A pipeline that converts the per-frame running totals of the Pune CCTV dataset into
+        5-minute, per-class arrival rates for SUMO.
+  \item A Gymnasium environment for a left-hand, mixed-traffic junction with one-road-at-a-time
+        phasing, dedicated left, straight and right lanes, an optional free left turn, and a
+        simulated camera that sees only the last 75\,m of each road.
+  \item A combined reward that counts queues and spill-back in PCU and charges for each change of
+        road, and a camera-only rule that serves as a baseline and as a teacher for DQN.
+  \item A comparison of ten training strategies and a final test on unseen days, heavier demand, an
+        unseen junction and free left turns, with five training seeds, against fixed-time and
+        loop-sensor actuated control.
+\end{enumerate}
+
+\section{Related Work}
+Genders and Razavi showed that a deep Q-network can control a single signalised
+intersection in SUMO and reduce delay compared with a fixed plan. IntelliLight
+trained a DQN on real traffic volumes from cameras in Jinan, China, and tested it in a simulator.
+Wei et al. survey later work on multi-intersection control and state and reward
+design. Most of these studies use lane-disciplined, car-only traffic and right-hand driving.
+This project uses real Indian counts with four vehicle classes, left-hand driving, motorbikes that
+share lanes, a PCU-weighted reward, and the one-road-at-a-time phasing that is common in India.
+
+\section{Background}
+\subsection{Markov decision process}
+The control problem is a Markov decision process (MDP) $(\mathcal{S},\mathcal{A},P,R,\gamma)$.
+At each decision step $t$ the agent observes a state $s_t$, selects an action $a_t$,
+receives a reward $r_{t+1}$ and moves to the state $s_{t+1}$. The agent maximises the expected
+discounted return $G_t=\sum_{k\ge 0}\gamma^k r_{t+k+1}$.
+
+\subsection{Q-learning and DQN}
+The action-value function $Q^\pi(s,a)$ is the expected return after action $a$ in state $s$.
+Q-learning is a temporal-difference (TD) method that moves its estimate towards the Bellman
+optimality target:
+\begin{equation}
+Q(s_t,a_t) \leftarrow Q(s_t,a_t) + \alpha\Big[r_{t+1} + \gamma \max_{a'} Q(s_{t+1},a') - Q(s_t,a_t)\Big].
+\end{equation}
+A table of $Q$ values is not possible for a continuous state such as queue lengths.
+DQN replaces the table with a neural network $Q_\theta$ and adds two parts
+for stable training:
+\begin{itemize}
+  \item an \emph{experience replay buffer} that stores transitions and samples random mini-batches;
+  \item a \emph{target network} $Q_{\theta^-}$, a delayed copy of $Q_\theta$ that gives the target
+        $y=r+\gamma\max_{a'}Q_{\theta^-}(s',a')$.
+\end{itemize}
+The loss is $\big(y-Q_\theta(s,a)\big)^2$. During training, an $\varepsilon$-greedy policy selects
+a random action with probability $\varepsilon$, so the agent tries choices it would not otherwise
+make and learns from the result. During testing the agent always takes the action with the highest
+$Q$ value.
+
+\subsection{Passenger car unit}
+A PCU converts a vehicle of any class into an equivalent number of passenger cars.
+IRC:106-1990 gives 1.0 for a car, 0.5 for a motorbike and 2.2 for a bus or a truck.
+
+\section{Dataset}
+The \emph{Heterogeneous Traffic Count Dataset, Pune (Jan 2023)} contains vehicle
+counts from CCTV at three signalised junctions in Pune. The Traffic Police Commissioner, Pune
+supplied the video. A YOLO detector and a multi-object tracker produced counts for four classes
+(car, motorbike, bus, truck) and four directions of movement in the image.
+
+\subsection{Preprocessing}
+Each CSV row is one video frame. The values are running totals since the start of the
+recording session; a file with the suffix \texttt{\_one} continues a session and restarts at zero.
+The script \texttt{src/data/preprocess.py} takes the last running total in each 5-minute bin and the
+difference between consecutive bins. The output has 9{,}528 rows: one row per junction, camera,
+day, 5-minute bin and direction. All cameras cover 09:00--12:00 on each of the eight days.
+
+\subsection{Demand for the simulator}
+Jehangir Chowk and RTO Chowk each have three cameras. Each camera is mapped to the north, east or
+south road. Each camera sees traffic in both directions, so the inbound rate is half of the
+camera count. The west road has no camera; it is a minor road with 40\% of the mean of the other
+roads. The dataset has no turning counts; the split is 70\% straight, 15\% left and 15\% right.
+For each 5-minute bin and class, departures follow a Poisson process with the observed rate.
+The mean inbound demand at Jehangir Chowk is about 3{,}650 vehicles per hour, and almost half of
+the vehicles are motorbikes (Figure~\ref{fig:demand}).
+
+\begin{figure}[H]
+\centering
+\fig{\linewidth}{../results/demand_profile.png}
+\caption{Left: inbound demand per road in 15-minute steps, mean of the eight days. Right: share
+of each vehicle class.}
+\label{fig:demand}
+\end{figure}
+
+\section{Simulation Environment}
+\subsection{Road network and vehicles}
+Figure~\ref{fig:junction} shows the simulated junction.
+
+\begin{figure}[H]
+\centering
+\fig{0.62\linewidth}{../results/junction.png}
+\caption{The simulated junction (top view, left-hand traffic). Arrows show the incoming traffic;
+the orange zones are the parts of each road that the camera sees.}
+\label{fig:junction}
+\end{figure}
+
+The simulator is SUMO. The network is a four-way junction with 250\,m roads, built
+with \texttt{netconvert --lefthand}.
+Each road has three incoming lanes: a left-turn lane on the kerb side, a straight lane and a
+straight-and-right lane. Motorbikes use the SUMO sublane model with a lateral resolution of
+0.8\,m, so they can move between cars. Emissions use HBEFA classes: a Euro~4 petrol car, a
+4-stroke motorbike up to 250\,cc, a city bus and a heavy diesel truck.
+
+\subsection{Signal phasing}
+The signal serves one road at a time (split phasing): all movements of the active road are green
+and every other road is red. This is a common plan at Pune junctions, because a protected
+right-turn phase is rare and opposing right turns conflict. A change of road always passes through
+3\,s of yellow and 2\,s of all-red.
+
+In the \emph{free left} variant, the left-turn lane works as a slip lane: left turns may go on red
+but must give way to the active movements.
+
+\clearpage
+\section{Methodology}
+\input{method.tex}
+
+\clearpage
+\section{Results}
+\input{results.tex}
+
+\section{Limitations and Future Work}
+The dataset gives no turning movements and has no camera for the west road, so the turn split
+(70/15/15) and the west-road demand are assumptions. The camera counts come from a YOLO detector
+and cover only 09:00--12:00 in January. Split phasing serves fewer vehicles than plans in which
+opposite roads move together; all controllers use the same phases, so the comparison stays fair.
+The simulated camera is perfect: it detects every vehicle in its 75\,m view, while a real
+detector misses vehicles under occlusion, at night or in rain, so real results would be somewhat
+worse for the camera rule and the camera-view DQN. The DQN results differ between training seeds;
+the report gives the mean and the spread of five seeds instead of the best seed.
+
+Future work:
+\begin{itemize}
+  \item control several connected junctions with multi-agent RL, so that one signal knows what
+        its neighbour will send;
+  \item add pedestrian phases and protected right-turn arrows;
+  \item collect turning counts from the CCTV video to remove the turn-split assumption;
+  \item add detection errors to the simulated camera and train the agent to be robust to them;
+  \item keep the learned policy close to the teacher (for example with early stopping or a
+        penalty for leaving the teacher's action), because longer training made the agent worse;
+  \item deploy the trained network on an edge device such as an NVIDIA Jetson next to the camera,
+        so that detection and control run on the same unit.
+\end{itemize}
+
+\section{Conclusion}
+\input{conclusion.tex}
+
+\clearpage
+\appendix
+\section{Reproducibility}
+All code, the SUMO network and the processed 5-minute counts are in the repository \repourl.
+The raw dataset (\url{https://data.mendeley.com/datasets/xnf2k6n288}, DOI 10.17632/xnf2k6n288.1,
+CC BY 4.0) is downloaded from Mendeley Data by a script that checks the SHA-256 hash of each file.
+\begin{itemize}
+  \item \textbf{Software:} Python 3.11+, SUMO 1.28.0 (\texttt{eclipse-sumo}, \texttt{libsumo}),
+        Stable-Baselines3, Gymnasium, PyTorch. Exact versions are in \texttt{requirements.txt}.
+  \item \textbf{Hardware:} Kaggle notebooks with 4 CPU cores. A GPU is optional; a benchmark on a
+        Tesla T4 gave 62.9\,s against 64.0\,s on the CPU for 6{,}000 training steps, because the
+        simulator, not the network, takes most of the time.
+  \item \textbf{Seeds:} training seeds 1 to 5; route seeds 0, 1 and 2 for each test day.
+  \item \textbf{Commands} (from \texttt{src/}):
+\begin{verbatim}
+python -m data.download
+python -m data.preprocess
+python train.py --delta-t 2 --warmstart 20000 --seed 1 --name dqn_camera_seed1
+python evaluate.py --models ../results/dqn_camera_seed1.zip
+python plots.py
+python report_tables.py
+\end{verbatim}
+  \item \textbf{Notebook:} \texttt{notebooks/pune\_signal\_rl.ipynb} runs the full pipeline on
+        Kaggle or Google Colab.
+\end{itemize}
+
+\clearpage
+\nocite{*}
+\begin{thebibliography}{11}
+\bibitem{mnih2015} V. Mnih et al., ``Human-level control through deep reinforcement learning,''
+  \emph{Nature}, vol. 518, pp. 529--533, 2015.
+\bibitem{sutton2018} R. S. Sutton and A. G. Barto, \emph{Reinforcement Learning: An Introduction},
+  2nd ed., MIT Press, 2018.
+\bibitem{pune2026} A. Matange and J. Abraham, ``Heterogeneous Traffic Count Dataset, Pune (Jan 2023),''
+  Mendeley Data, V1, 2026. doi:10.17632/xnf2k6n288.1.
+\bibitem{irc106} Indian Roads Congress, \emph{IRC:106-1990 Guidelines for Capacity of Urban Roads in
+  Plain Areas}, New Delhi, 1990.
+\bibitem{sumo} P. A. Lopez et al., ``Microscopic traffic simulation using SUMO,''
+  in \emph{Proc. IEEE ITSC}, 2018, pp. 2575--2582.
+\bibitem{sb3} A. Raffin et al., ``Stable-Baselines3: Reliable reinforcement learning implementations,''
+  \emph{JMLR}, vol. 22, no. 268, pp. 1--8, 2021.
+\bibitem{wei2019} H. Wei, G. Zheng, V. Gayah and Z. Li, ``A survey on traffic signal control methods,''
+  arXiv:1904.08117, 2019.
+\bibitem{genders2016} W. Genders and S. Razavi, ``Using a deep reinforcement learning agent for
+  traffic signal control,'' arXiv:1611.01142, 2016.
+\bibitem{wei2018} H. Wei, G. Zheng, H. Yao and Z. Li, ``IntelliLight: A reinforcement learning approach
+  for intelligent traffic light control,'' in \emph{Proc. ACM SIGKDD}, 2018, pp. 2496--2505.
+\bibitem{dabney2018} W. Dabney, M. Rowland, M. G. Bellemare and R. Munos, ``Distributional reinforcement
+  learning with quantile regression,'' in \emph{Proc. AAAI}, 2018, pp. 2892--2901.
+\end{thebibliography}
+\end{document}

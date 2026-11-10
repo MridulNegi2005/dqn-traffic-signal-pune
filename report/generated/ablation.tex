@@ -1,0 +1,22 @@
+\begin{tabular}{lrrrrr}
+\toprule
+ & \multicolumn{2}{c}{Mean wait (s)} & \multicolumn{2}{c}{Throughput (veh/h)} & CO$_2$ \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Controller & 1.0$\times$ & 1.3$\times$ & 1.0$\times$ & 1.3$\times$ & (g/veh) \\
+\midrule
+\multicolumn{6}{l}{\textit{Baselines}} \\
+Fixed-time & 495 & 952 & 3033 & 3459 & 481 \\
+Actuated (loop sensors) & 86 & 491 & 3393 & 3968 & 300 \\
+\rowcolor{bench}\textbf{Camera rule} & \textbf{66} & \textbf{453} & \textbf{3401} & \textbf{4051} & \textbf{298} \\
+\midrule
+\multicolumn{6}{l}{\textit{DQN training runs}} \\
+R1 DQN, 5 s & 337 & 499 & 2502 & 2704 & 543 \\
+R2 DQN, 2 s & 308 & 945 & 2988 & 2916 & 474 \\
+\rowcolor{chosen}\textbf{R3--R5 warm start, camera view (3 seeds)} & \textbf{109} & \textbf{622} & \textbf{3371} & \textbf{3816} & \textbf{320} \\
+R6 keep/switch action & 217 & 526 & 3283 & 3914 & 358 \\
+R7 QR-DQN & 379 & 650 & 3104 & 3788 & 370 \\
+R8 300k steps & 431 & 996 & 3097 & 3477 & 429 \\
+R9 old reward & 150 & 549 & 3352 & 3889 & 358 \\
+R10 full-lane view & 76 & 467 & 3408 & 4010 & 326 \\
+\bottomrule
+\end{tabular}

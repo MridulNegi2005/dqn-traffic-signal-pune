@@ -1,0 +1,20 @@
+This project built a traffic-signal controller for a Pune junction that uses only the view of a
+CCTV camera. Real vehicle counts from Jehangir Chowk drive a SUMO model with mixed traffic,
+left-hand driving and one-road-at-a-time signals.
+
+The main results are:
+\begin{itemize}
+  \item A DQN agent trained from scratch learns to beat the fixed plan but stays far behind the
+        actuated controller. A warm start from a simple camera rule, a combined reward and a
+        decision every 2\,s close most of that gap.
+  \item The camera rule itself is the strongest controller. It waits 25--43\% less than the
+        loop-sensor actuated controller in normal traffic, equals it at 1.3 times the demand, and
+        needs only a camera that most junctions already have.
+  \item The camera-view DQN comes close to the actuated controller and works on a junction it never
+        saw, but its result depends on the training seed and it fails when the road layout
+        changes.
+\end{itemize}
+
+For a single junction, a well-designed camera rule is the practical choice today. Reinforcement
+learning is most useful as a way to improve on such a rule, and its value grows when several
+junctions must work together, which is the next step for this work.

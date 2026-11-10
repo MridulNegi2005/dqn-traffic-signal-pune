@@ -1,0 +1,69 @@
+\subsection{First attempt}
+The first DQN used the drop in waiting time as its reward, a 5\,s decision step and a full-lane
+view. On the unseen days it reduced the mean waiting time from 485\,s (fixed-time) to 294\,s, but
+the actuated controller reached 98\,s. Its reward did not see vehicles that could not enter the
+road, it did not pay for a change of road, and it could leave a quiet road unserved for a long
+time. These findings led to the combined reward and the strategies in Table~\ref{tab:strategies}.
+
+\subsection{Strategy comparison}
+Table~\ref{tab:ablation} and Figure~\ref{fig:ablation} compare the ten training runs with the
+three baselines on the unseen days at 1.0 and 1.3 times the real demand (one route seed per day).
+
+\begin{table}[H]
+\centering\small
+\input{generated/ablation.tex}
+\caption{Strategy comparison on unseen days (16--18 January). Green: the camera rule, used as the
+benchmark and teacher. Blue: the strategy chosen for the final test (warm start, camera view);
+its row is the mean of three seeds.}
+\label{tab:ablation}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\fig{0.85\linewidth}{../results/ablation.png}
+\caption{Mean waiting time of each strategy and baseline on unseen days.}
+\label{fig:ablation}
+\end{figure}
+
+\input{ablation_discussion.tex}
+
+\subsection{Full test}
+The full test compares the camera-view DQN (the R3--R5 setup, trained with \camseedsword{} seeds) with the
+three baselines on all five scenarios, with \routeseedsword{} route seeds per day (Table~\ref{tab:summary},
+Figure~\ref{fig:comparison}). Every controller in this test uses only data that one camera or one
+set of loops at the junction can give.
+
+\begin{table}[H]
+\centering\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\input{generated/summary.tex}
+\caption{Full test results. Mean over 3 days $\times$ \routeseeds{} route seeds; for DQN also over \trainseeds{} training
+seeds ($\pm$ is the standard deviation between training seeds). Thr.\ is throughput; CO$_2$ and
+fuel are per vehicle.}
+\label{tab:summary}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\fig{\linewidth}{../results/comparison.png}
+\caption{Waiting time, trip time, throughput and CO$_2$ for each controller and scenario.
+Error bars show the spread between the \camseedsword{} training seeds of the DQN.}
+\label{fig:comparison}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\fig{0.8\linewidth}{../results/learning_curve.png}
+\caption{Episode return of the camera-view DQN during training. Thin lines: single training
+seeds; thick line: their mean.}
+\label{fig:learning}
+\end{figure}
+
+\begin{table}[H]
+\centering\small
+\input{generated/by_class.tex}
+\caption{Mean waiting time (s) by vehicle class on the unseen days.}
+\label{tab:class}
+\end{table}
+
+\input{discussion.tex}
