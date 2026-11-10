@@ -28,7 +28,10 @@ TEST_DATES = ["2023-01-16", "2023-01-17", "2023-01-18"]
 DAY_START = "09:00"
 DAY_SECONDS = 3 * 3600
 
+ARMS = ["N", "E", "S", "W"]   # one green phase per road (split phasing)
 DELTA_T = 5        # seconds between decisions
 YELLOW = 3
+ALL_RED = 2
 MIN_GREEN = 10
-MAX_GREEN = 90
+MAX_GREEN = 60
+FIXED_GREEN = 30   # fixed-time plan: 4 x (30 + 3 + 2) = 140 s cycle

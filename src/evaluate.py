@@ -11,13 +11,13 @@ from stable_baselines3 import DQN
 import config as C
 from env import PuneCrossingEnv
 
-NETS = {"fixed": C.SUMO_DIR / "cross.net.xml", "actuated": C.SUMO_DIR / "cross_actuated.net.xml"}
-
-# name -> (junction, demand scale). All use the held-out test days.
+# name -> (junction, demand scale, free left). All use the held-out test days.
 SCENARIOS = {
-    "unseen_days": ("JehangirChowk", 1.0),
-    "heavy_demand_1.3x": ("JehangirChowk", 1.3),
-    "unseen_junction_RTO": ("RTOChowk", 1.0),
+    "unseen_days": ("JehangirChowk", 1.0, False),
+    "heavy_demand_1.3x": ("JehangirChowk", 1.3, False),
+    "unseen_junction_RTO": ("RTOChowk", 1.0, False),
+    "free_left": ("JehangirChowk", 1.0, True),
+    "free_left_1.3x": ("JehangirChowk", 1.3, True),
 }
 KEYS = ["scenario", "controller"]
 
@@ -39,15 +39,14 @@ def read_tripinfo(path):
 
 def run(job):
     scenario, controller, model_path, date, seed, tmp = job
-    junction, scale = SCENARIOS[scenario]
+    junction, scale, free_left = SCENARIOS[scenario]
     ti = Path(tmp) / f"trip_{scenario}_{controller}_{date}_{seed}.xml"
     env = PuneCrossingEnv(dates=[date], episode_seconds=C.DAY_SECONDS, random_start=False,
-                          net_file=NETS.get(controller, NETS["fixed"]), tripinfo=ti,
-                          scale=scale, junction=junction)
+                          tripinfo=ti, scale=scale, junction=junction, free_left=free_left,
+                          controller=controller if model_path is None else "agent")
     opts = {"date": date, "route_seed": seed}
     if model_path is None:
-        env.reset(seed=seed, options=opts)
-        env.run_uncontrolled(options=opts)
+        env.run_baseline(options=opts)
     else:
         model = DQN.load(model_path, device="cpu")
         obs, _ = env.reset(seed=seed, options=opts)
@@ -99,16 +98,21 @@ def main(a):
     tmp = C.ROOT / "results" / "runs" / "eval"
     tmp.mkdir(parents=True, exist_ok=True)
     controllers = [("fixed", None), ("actuated", None)]
-    controllers += [(Path(m).stem.replace("dqn_", "dqn_"), m) for m in a.models]
+    controllers += [(Path(m).stem, m) for m in a.models]
     jobs = [(sc, name, path, date, seed, str(tmp))
-            for sc in SCENARIOS for name, path in controllers
+            for sc in a.scenarios for name, path in controllers
             for date in C.TEST_DATES for seed in range(a.route_seeds)]
     with Pool(a.workers) as pool:
         rows = [r for part in pool.imap_unordered(run, jobs) for r in part]
     df = pd.DataFrame(rows)
-    df.to_csv(C.ROOT / "results" / "eval_trips.csv.gz", index=False)
+    tag = "" if len(a.scenarios) == len(SCENARIOS) else "_" + "_".join(a.scenarios)
+    df.to_csv(C.ROOT / "results" / f"eval_trips{tag}.csv.gz", index=False)
     runs = per_run(df)
-    runs.to_csv(C.ROOT / "results" / "eval_runs.csv", index=False)
+    runs.to_csv(C.ROOT / "results" / f"eval_runs{tag}.csv", index=False)
+    report(df, runs)
+
+
+def report(df, runs):
     s = summarise(runs)
     s.to_csv(C.ROOT / "results" / "summary.csv", index=False)
     df["family"] = df.controller.str.replace(r"_seed\d+$", "", regex=True)
@@ -121,7 +125,17 @@ def main(a):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--models", nargs="+", required=True, help="paths to trained DQN .zip files")
+    p.add_argument("--models", nargs="+", default=[], help="paths to trained DQN .zip files")
     p.add_argument("--route-seeds", type=int, default=2)
     p.add_argument("--workers", type=int, default=os.cpu_count())
-    main(p.parse_args())
+    p.add_argument("--scenarios", nargs="+", default=list(SCENARIOS), choices=list(SCENARIOS))
+    p.add_argument("--merge", nargs="+", help="merge eval_trips*.csv.gz files instead of running")
+    a = p.parse_args()
+    if a.merge:
+        df = pd.concat(pd.read_csv(f) for f in a.merge)
+        df.to_csv(C.ROOT / "results" / "eval_trips.csv.gz", index=False)
+        runs = per_run(df)
+        runs.to_csv(C.ROOT / "results" / "eval_runs.csv", index=False)
+        report(df, runs)
+    else:
+        main(a)
