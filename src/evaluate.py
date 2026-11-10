@@ -120,7 +120,7 @@ def summarise(runs):
 def main(a):
     tmp = C.ROOT / "results" / "runs" / "eval"
     tmp.mkdir(parents=True, exist_ok=True)
-    controllers = [("fixed", None), ("actuated", None), ("camera_rule", None)]
+    controllers = [] if a.no_baselines else [("fixed", None), ("actuated", None), ("camera_rule", None)]
     controllers += [(Path(m).stem, m) for m in a.models]
     jobs = [(sc, name, path, date, seed, str(tmp))
             for sc in a.scenarios for name, path in controllers
@@ -128,7 +128,7 @@ def main(a):
     with Pool(a.workers) as pool:
         rows = [r for part in pool.imap_unordered(run, jobs) for r in part]
     df = pd.DataFrame(rows)
-    tag = "" if len(a.scenarios) == len(SCENARIOS) else "_" + "_".join(a.scenarios)
+    tag = a.tag or ("" if len(a.scenarios) == len(SCENARIOS) else "_" + "_".join(a.scenarios))
     df.to_csv(C.ROOT / "results" / f"eval_trips{tag}.csv.gz", index=False)
     runs = per_run(df)
     runs.to_csv(C.ROOT / "results" / f"eval_runs{tag}.csv", index=False)
@@ -152,6 +152,8 @@ if __name__ == "__main__":
     p.add_argument("--route-seeds", type=int, default=2)
     p.add_argument("--workers", type=int, default=os.cpu_count())
     p.add_argument("--scenarios", nargs="+", default=list(SCENARIOS), choices=list(SCENARIOS))
+    p.add_argument("--no-baselines", action="store_true")
+    p.add_argument("--tag", default="", help="suffix for output files")
     p.add_argument("--merge", nargs="+", help="merge eval_trips*.csv.gz files instead of running")
     a = p.parse_args()
     if a.merge:
