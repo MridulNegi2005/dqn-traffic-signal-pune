@@ -1,6 +1,6 @@
-eclipse-sumo==1.23.1
-libsumo==1.23.1
-traci==1.23.1
+eclipse-sumo==1.28.0
+libsumo==1.28.0
+traci==1.28.0
 stable-baselines3>=2.3
 gymnasium>=0.29
 torch>=2.2

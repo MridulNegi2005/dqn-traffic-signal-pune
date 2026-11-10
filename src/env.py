@@ -34,18 +34,20 @@ class PuneCrossingEnv(gym.Env):
 
     def __init__(self, dates=None, episode_seconds=3600, random_start=True,
                  net_file=C.NET_FILE, scale=1.0, tripinfo=None, controller="agent",
-                 seed=None, sublane=True):
+                 seed=None, sublane=True, junction=C.TRAIN_JUNCTION, scale_range=None):
         super().__init__()
         self.dates = dates or C.TRAIN_DATES
         self.episode_seconds = episode_seconds
         self.random_start = random_start
         self.net_file = Path(net_file)
         self.scale = scale
+        self.scale_range = scale_range
+        self.junction = junction
         self.tripinfo = tripinfo
         self.controller = controller
         self.sublane = sublane
-        self.counts = load_counts()
-        self.rates = {d: arm_rates(self.counts, d) for d in self.dates}
+        self.counts = load_counts(junction)
+        self.rates = {d: arm_rates(self.counts, d, junction) for d in self.dates}
         self.tmp = Path(tempfile.gettempdir()) / f"pune_rl_{uuid.uuid4().hex[:8]}"
         self.tmp.mkdir(parents=True, exist_ok=True)
         self.sumo_seed = 0
@@ -83,7 +85,8 @@ class PuneCrossingEnv(gym.Env):
             cmd += ["--lateral-resolution", "0.8"]
         if self.tripinfo:
             cmd += ["--tripinfo-output", str(self.tripinfo),
-                    "--tripinfo-output.write-unfinished"]
+                    "--tripinfo-output.write-unfinished",
+                    "--device.emissions.probability", "1"]
         sumo_api.start(cmd)
         self._running = True
 
@@ -107,13 +110,16 @@ class PuneCrossingEnv(gym.Env):
         self.start = day0 + pd.Timedelta(seconds=offset)
         rates = self.rates.get(date)
         if rates is None:
-            rates = arm_rates(self.counts, date)
+            rates = arm_rates(self.counts, date, self.junction)
         routes = self.tmp / "routes.rou.xml"
+        scale = self.scale
+        if self.scale_range:
+            scale = float(self.np_random.uniform(*self.scale_range))
         route_seed = options.get("route_seed")
         if route_seed is None:
             route_seed = int(self.np_random.integers(1e9))
         self.n_vehicles = write_routes(rates, self.start, self.episode_seconds, routes,
-                                       seed=route_seed, scale=self.scale)
+                                       seed=route_seed, scale=scale)
         self.sumo_seed = route_seed % 1_000_000
         self._start_sumo(routes)
         self.phase = 0
