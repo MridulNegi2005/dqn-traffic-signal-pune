@@ -25,7 +25,7 @@ cells = [
     ("md", "## 3. Train the DQN agent\nSUMO runs on the CPU in parallel copies; "
            "the Q-network trains on the GPU when one is present."),
     ("code", "import torch; print('GPU:', torch.cuda.is_available())\n"
-             "!cd src && python train.py --steps 150000 --envs 4"),
+             "!cd src && python train.py --steps 150000 --envs 4 --seed 1 --name dqn_seed1"),
     ("md", "## 4. Evaluate on unseen days (16-18 January 2023)"),
     ("code", "!cd src && python evaluate.py --seeds 3\n"
              "!cd src && python plots.py"),
