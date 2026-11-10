@@ -26,11 +26,11 @@ cells = [
            "the Q-network trains on the GPU when one is present."),
     ("code", "import torch; print('GPU:', torch.cuda.is_available())\n"
              "!cd src && python train.py --steps 150000 --envs 4 --seed 1 --name dqn_seed1"),
-    ("md", "## 4. Evaluate on unseen days (16-18 January 2023)"),
-    ("code", "!cd src && python evaluate.py --seeds 3\n"
+    ("md", "## 4. Test on unseen days, heavier demand, an unseen junction and free left turns"),
+    ("code", "!cd src && python evaluate.py --models ../results/dqn_seed1.zip\n"
              "!cd src && python plots.py"),
     ("code", "from IPython.display import Image, display\n"
-             "for f in ['learning_curve.png', 'comparison.png', 'wait_by_class.png']:\n"
+             "for f in ['demand_profile.png', 'learning_curve.png', 'comparison.png', 'wait_by_class.png']:\n"
              "    display(Image('results/' + f))"),
 ]
 

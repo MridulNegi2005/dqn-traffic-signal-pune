@@ -20,7 +20,9 @@ SCEN = {"unseen_days": "Unseen days", "heavy_demand_1.3x": "Unseen days,\n1.3x d
 def learning_curve():
     fig, ax = plt.subplots(figsize=(7, 3.5))
     curves = []
-    for d in sorted(glob.glob(str(RES / "monitor" / "dqn_seed*_monitor"))):
+    dirs = glob.glob(str(RES / "monitor" / "dqn_seed*_monitor"))
+    dirs += glob.glob(str(RES / "runs" / "dqn_seed*" / "monitor"))
+    for d in sorted(dirs):
         files = glob.glob(d + "/*.monitor.csv")
         df = pd.concat(pd.read_csv(f, skiprows=1) for f in files).sort_values("t")
         r = df.r.rolling(20, min_periods=1).mean().to_numpy()
