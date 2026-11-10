@@ -12,3 +12,7 @@ report/*.toc
 .ai-sync/
 .venv/
 results/train_log.txt
+results/strat/
+results/final/*/
+results/kaggle/
+report/build.log
